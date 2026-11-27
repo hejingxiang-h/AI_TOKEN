@@ -87,7 +87,7 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 供应商凭据由 LiteLLM 运行环境注入。模型连通性检查需要 FastAPI 能访问 LiteLLM 私有地址，配置 `APP_LITELLM_URL` 和具有对应健康接口权限的 `APP_LITELLM_ADMIN_KEY`。未配置时返回 `unavailable`。
 
-子 Key 由管理员授权，所有者领取一次。Key 哈希和掩码用于本地登记。网关通过该 Key 进行模型准入。模型路由和用量详情见阶段七说明。首页、Token 统计、调用记录、操作日志、风险告警和系统设置仍为有标记的演示页面。
+子 Key 由管理员授权，所有者领取一次。Key 哈希和掩码用于本地登记。网关通过该 Key 进行模型准入。模型路由和用量详情见阶段七说明。操作日志、风险告警和系统设置仍为有标记的演示页面。
 
 集成测试需要独立 PostgreSQL 数据库。数据库名需以 `_stage_six` 结尾，配置 `APP_DB_*`，应用迁移后使用 `TEST_GATEWAY_POSTGRES=1` 运行 `uv run pytest -q`。测试会写入合成记录，请使用可回收的测试库。
 
@@ -100,3 +100,9 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 DeepSeek 普通响应、SSE 和平台结算已在隔离环境通过真实调用验证。生产部署、服务 Virtual Key 和真实工具调用待验收。供应商凭据仅在服务端加载，本地环境文件由 Git 忽略。
 
 凭据隔离、日志和提交前检查见 [安全设计](docs/SECURITY.md)。
+
+## 阶段八统计
+
+首页、Token 统计、调用记录读取真实网关账本。用 `APP_ENTERPRISE_TIMEZONE` 配置企业时区，默认 `Asia/Shanghai`。费用按原币展示。参见 [统计接口和数据口径](docs/USAGE_ANALYTICS.md)。
+
+统计默认显示企业时区的今天。费用只汇总已结算的平台金额，未知用量和未结算数量单独展示。页面与明细均按当前账号的数据范围读取。

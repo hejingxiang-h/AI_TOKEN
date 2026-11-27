@@ -11,6 +11,7 @@ from app.api.gateway import router as gateway_router
 from app.api.health import router
 from app.api.model_catalog import router as model_router
 from app.api.organization import router as organization_router
+from app.api.usage import router as usage_router
 from app.core.config import Settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import RequestLoggingMiddleware, configure_logging
@@ -78,6 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(model_router)
     application.include_router(access_router)
     application.include_router(gateway_router)
+    application.include_router(usage_router)
     return application
 
 

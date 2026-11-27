@@ -17,12 +17,12 @@ const router = createRouter({
       component: AppLayout,
       children: [
         { path: '', redirect: '/dashboard' },
-        { path: 'dashboard', component: DashboardView, meta: { title: '首页工作台' } },
+        { path: 'dashboard', component: DashboardView, meta: { title: '首页工作台', live: true } },
         {
           path: 'statistics',
           component: DashboardView,
           props: { statistics: true },
-          meta: { title: 'Token 统计' },
+          meta: { title: 'Token 统计', live: true },
         },
         ...management.map((section) => ({
           path: section.path,
@@ -30,12 +30,20 @@ const router = createRouter({
           props: { section },
           meta: { title: section.title, live: true },
         })),
-        ...sections.map((section) => ({
-          path: section.path,
-          component: RecordsView,
-          props: { section },
-          meta: { title: section.title },
-        })),
+        {
+          path: 'calls',
+          component: DashboardView,
+          props: { recordsOnly: true },
+          meta: { title: '调用记录', live: true },
+        },
+        ...sections
+          .filter((section) => section.path !== 'calls')
+          .map((section) => ({
+            path: section.path,
+            component: RecordsView,
+            props: { section },
+            meta: { title: section.title },
+          })),
         { path: 'system/health', component: SystemHealthView, meta: { title: '系统健康' } },
       ],
     },

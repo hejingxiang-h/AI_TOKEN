@@ -16,6 +16,7 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
     )
 
+    app_enterprise_timezone: str = "Asia/Shanghai"
     app_name: str = "AI Token Gateway"
     app_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     app_cors_origins: list[str] = Field(
