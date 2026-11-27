@@ -1,0 +1,11 @@
+proxy_pass $backend;
+proxy_http_version 1.1;
+proxy_set_header Host $server_name;
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Forwarded-Proto https;
+proxy_set_header Forwarded "";
+proxy_set_header Connection "";
+proxy_buffering off;
+proxy_request_buffering off;
+proxy_cache off;
+proxy_read_timeout 330s;

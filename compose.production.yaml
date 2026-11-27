@@ -1,0 +1,238 @@
+name: ai-token-gateway-production
+
+x-logging: &rotated
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-db-env: &database
+  APP_DB_HOST: postgres
+  APP_DB_NAME: ai_token_gateway
+  APP_DB_USER: gateway_app
+
+x-app: &app
+  image: ai-token/backend:${RELEASE_TAG:?Set RELEASE_TAG}
+  build: ./backend
+  entrypoint: ["/bin/sh", "/opt/prod/app-entrypoint.sh"]
+  volumes:
+    - ./deploy/production/app-entrypoint.sh:/opt/prod/app-entrypoint.sh:ro
+  logging: *rotated
+  init: true
+
+services:
+  postgres:
+    stop_grace_period: 60s
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *rotated
+    environment:
+      POSTGRES_USER: gateway_bootstrap
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      APP_DB_NAME: ai_token_gateway
+      APP_DB_USER: gateway_app
+      LITELLM_DB_NAME: ai_token_proxy
+      LITELLM_DB_USER: gateway_proxy
+    secrets: [postgres_password, app_db_password, proxy_db_password]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/production/postgres-init.sh:/docker-entrypoint-initdb.d/10-production.sh:ro
+    networks: [data, proxy-data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -h 127.0.0.1 -U gateway_bootstrap -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    stop_grace_period: 45s
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    logging: *rotated
+    entrypoint: ["/bin/sh", "/opt/prod/redis-entrypoint.sh"]
+    secrets: [redis_password]
+    volumes:
+      - redis_data:/data
+      - ./deploy/production/redis-entrypoint.sh:/opt/prod/redis-entrypoint.sh:ro
+      - ./deploy/redis/start.sh:/opt/prod/redis-start.sh:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$(cat /run/secrets/redis_password) redis-cli ping | grep -qx PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  proxy-migrate:
+    image: ghcr.io/berriai/litellm:v1.111.0
+    profiles: [ops]
+    entrypoint: ["/bin/sh", "/opt/prod/litellm-entrypoint.sh"]
+    command: ["migrate"]
+    restart: "no"
+    logging: *rotated
+    environment:
+      LITELLM_TELEMETRY: "False"
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+    secrets: [proxy_db_password]
+    volumes:
+      - ./deploy/production/litellm-entrypoint.sh:/opt/prod/litellm-entrypoint.sh:ro
+    networks: [proxy-data, provider-egress]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  litellm:
+    stop_grace_period: 330s
+    image: ghcr.io/berriai/litellm:v1.111.0
+    entrypoint: ["/bin/sh", "/opt/prod/litellm-entrypoint.sh"]
+    command: ["serve"]
+    restart: unless-stopped
+    logging: *rotated
+    init: true
+    environment:
+      LITELLM_TELEMETRY: "False"
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      APP_GATEWAY_CALLBACK_BASE_URL: http://backend:8000
+    secrets: [proxy_db_password, proxy_master_key, proxy_salt_key, callback_secret, deepseek_api_key]
+    volumes:
+      - ./deploy/production/litellm-entrypoint.sh:/opt/prod/litellm-entrypoint.sh:ro
+      - ./deploy/production/litellm.yaml:/opt/prod/litellm.yaml:ro
+      - ./deploy/production/provision-key.py:/opt/prod/provision-key.py:ro
+      - ./deploy/litellm/gateway_callback.py:/opt/prod/gateway_callback.py:ro
+    networks: [gateway, proxy-data, provider-egress]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:4000/health/liveliness', timeout=5).close()"]
+      interval: 15s
+      timeout: 7s
+      retries: 10
+      start_period: 60s
+
+  migrate:
+    <<: *app
+    profiles: [ops]
+    command: ["alembic", "upgrade", "head"]
+    environment: *database
+    secrets: [app_db_password]
+    networks: [data]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    <<: *app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+    restart: unless-stopped
+    stop_grace_period: 330s
+    environment:
+      <<: *database
+      APP_REDIS_HOST: redis
+      APP_ENTERPRISE_TIMEZONE: ${APP_ENTERPRISE_TIMEZONE:-Asia/Shanghai}
+      APP_SECURE_COOKIES: "true"
+      APP_DOCS_ENABLED: "false"
+      APP_CORS_ORIGINS: '["https://${APP_PUBLIC_HOST:?Set APP_PUBLIC_HOST}"]'
+      FORWARDED_ALLOW_IPS: ${APP_EDGE_PROXY_IP:?Set APP_EDGE_PROXY_IP}
+      APP_LITELLM_URL: http://litellm:4000
+      APP_GATEWAY_INPUT_BOUNDS: ${APP_GATEWAY_INPUT_BOUNDS:?Set model input bounds}
+      APP_GATEWAY_TPM: ${APP_GATEWAY_TPM:-12000000}
+      APP_GATEWAY_RPM: ${APP_GATEWAY_RPM:-60}
+      APP_GATEWAY_PARALLEL: ${APP_GATEWAY_PARALLEL:-4}
+      APP_GATEWAY_OUTPUT_LIMIT: ${APP_GATEWAY_OUTPUT_LIMIT:-512}
+      APP_GATEWAY_DEADLINE: ${APP_GATEWAY_DEADLINE:-120}
+      APP_GATEWAY_RESPONSES_ENABLED: "false"
+    secrets: [app_db_password, redis_password, jwt_secret, proxy_service_key, callback_secret]
+    networks: [edge, data, gateway]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      litellm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health/ready', timeout=4).close()"]
+      interval: 15s
+      timeout: 6s
+      retries: 8
+
+  worker:
+    stop_grace_period: 45s
+    <<: *app
+    working_dir: /app
+    command: ["python", "-m", "app.tasks.risk_worker"]
+    environment:
+      <<: *database
+      APP_REDIS_HOST: redis
+      APP_GATEWAY_DEADLINE: ${APP_GATEWAY_DEADLINE:-120}
+      PYTHONPATH: /app
+      APP_RISK_INTERVAL: ${APP_RISK_INTERVAL:-30}
+    secrets: [app_db_password, redis_password]
+    restart: unless-stopped
+    networks: [data]
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./deploy/production/app-entrypoint.sh:/opt/prod/app-entrypoint.sh:ro
+      - ./deploy/production/worker-health.py:/opt/prod/worker-health.py:ro
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/opt/prod/app-entrypoint.sh", "python", "/opt/prod/worker-health.py"]
+      interval: 30s
+      timeout: 8s
+      retries: 5
+
+  nginx:
+    stop_grace_period: 335s
+    image: ai-token/edge:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: ./frontend
+    restart: unless-stopped
+    logging: *rotated
+    environment:
+      APP_PUBLIC_HOST: ${APP_PUBLIC_HOST:?Set APP_PUBLIC_HOST}
+      NGINX_ENVSUBST_FILTER: "^APP_PUBLIC_HOST$"
+    ports: ["80:80", "443:443"]
+    secrets: [tls_certificate, tls_private_key]
+    volumes:
+      - ./deploy/production/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./deploy/production/inference.inc:/etc/nginx/inference.inc:ro
+    networks:
+      edge:
+        ipv4_address: ${APP_EDGE_PROXY_IP:?Set APP_EDGE_PROXY_IP}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/edge-health | grep -qx ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: ${APP_EDGE_SUBNET:?Set APP_EDGE_SUBNET}
+  data: {internal: true}
+  gateway: {internal: true}
+  proxy-data: {internal: true}
+  provider-egress: {}
+
+volumes:
+  postgres_data:
+  redis_data:
+
+secrets:
+  postgres_password: {file: "${PROD_SECRETS_DIR:?Set PROD_SECRETS_DIR}/postgres_password"}
+  app_db_password: {file: "${PROD_SECRETS_DIR}/app_db_password"}
+  proxy_db_password: {file: "${PROD_SECRETS_DIR}/proxy_db_password"}
+  redis_password: {file: "${PROD_SECRETS_DIR}/redis_password"}
+  jwt_secret: {file: "${PROD_SECRETS_DIR}/jwt_secret"}
+  proxy_master_key: {file: "${PROD_SECRETS_DIR}/proxy_master_key"}
+  proxy_salt_key: {file: "${PROD_SECRETS_DIR}/proxy_salt_key"}
+  proxy_service_key: {file: "${PROD_SECRETS_DIR}/proxy_service_key"}
+  callback_secret: {file: "${PROD_SECRETS_DIR}/callback_secret"}
+  deepseek_api_key: {file: "${PROD_SECRETS_DIR}/deepseek_api_key"}
+  tls_certificate: {file: "${PROD_SECRETS_DIR}/tls_certificate.pem"}
+  tls_private_key: {file: "${PROD_SECRETS_DIR}/tls_private_key.pem"}

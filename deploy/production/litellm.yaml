@@ -1,0 +1,21 @@
+model_list:
+  - model_name: deepseek-flash
+    litellm_params:
+      model: openai/deepseek-flash
+      api_base: https://api.deepseek.com/v1
+      api_key: os.environ/DEEPSEEK_API_KEY
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  store_model_in_db: false
+  disable_prisma_schema_update: true
+  store_prompts_in_spend_logs: false
+  disable_requester_ip_address_logging: true
+
+litellm_settings:
+  callbacks: ["gateway_callback.handler"]
+  turn_off_message_logging: true
+  num_retries: 0
+
+router_settings:
+  num_retries: 0

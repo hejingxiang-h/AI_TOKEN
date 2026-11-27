@@ -116,3 +116,11 @@ DeepSeek 普通响应、SSE 和平台结算已在隔离环境通过真实调用�
 ## 阶段十测试与 DeepSeek 验收
 
 当前端到端实测范围为 DeepSeek。普通响应、SSE、函数工具回合、归属和平台结算已在本机隔离环境验证。部署前仍需验证 Docker、Nginx 和代理账务日志。其他供应商后续接入。详见 [全系统测试报告](docs/TEST_REPORT.md) 与 [DeepSeek 验收报告](docs/DEEPSEEK_ACCEPTANCE.md)。
+
+## 阶段十一生产部署
+
+生产使用独立的 `compose.production.yaml` 和 `.env.production.example`，保留现有本地开发流程。生产入口由 Nginx 提供 HTTPS 和 Vue 静态文件，FastAPI 与 LiteLLM 数据库迁移分开执行，风险任务独立运行。首次启动、凭据、管理员初始化、备份恢复与升级回滚见 [生产部署指南](docs/DEPLOYMENT.md)。
+
+已验证本地配置和隔离迁移。正式证书、目标服务器和生产容器仍待验收。
+
+生产环境模板仅填写非敏感参数。凭据、TLS 私钥和数据库备份存放在仓库外。对外开放前检查入口、代理网络、证书及恢复演练。详见 [生产安全边界](docs/SECURITY.md)。
