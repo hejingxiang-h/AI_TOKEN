@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, HttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     )
     app_docs_enabled: bool = True
     app_probe_timeout: Timeout = 2.0
+    app_jwt_secret: SecretStr | None = None
+    app_access_token_seconds: Annotated[int, Field(ge=60, le=1800)] = 900
+    app_refresh_token_seconds: Annotated[int, Field(ge=300, le=2592000)] = 604800
+    app_secure_cookies: bool = True
+    app_litellm_url: HttpUrl | None = None
+    app_litellm_admin_key: SecretStr | None = None
 
     app_db_host: str = "127.0.0.1"
     app_db_port: Port = 5432

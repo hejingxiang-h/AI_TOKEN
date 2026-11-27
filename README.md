@@ -71,3 +71,28 @@ docker compose ps
 默认仅 Nginx 将 8080 端口绑定到宿主机回环地址。PostgreSQL 使用命名卷，Redis 通过环境变量认证，LiteLLM Proxy 的管理端口仅在内部网络可达。Nginx 区分管理 API 和模型路径，并为已规划的模型路径保留 SSE 转发参数。模型路径只会进入 FastAPI，此阶段尚无推理处理器。LiteLLM 模型目录为空，代理密钥和上游供应商密钥由将来的获批部署注入。
 
 阶段四的 Docker 验收是 Compose 配置校验。以上启动命令供目标环境部署验证。本机使用 PostgreSQL 16.15 和 Garnet 兼容服务验证健康检查。正式 Redis 7.4 镜像运行待验证。实际执行结果见 [开发进度](docs/PROGRESS.md)。
+
+## 阶段六基础业务
+
+在项目根目录的本地环境配置中设置 `APP_JWT_SECRET`，使用独立、随机的至少 32 字节签名密钥。HTTPS 部署保持 `APP_SECURE_COOKIES=true`。仅在本机 HTTP 开发时设置 `APP_SECURE_COOKIES=false`。首次部署在业务数据库应用迁移后创建第一个超级管理员，密码通过交互输入。
+
+```powershell
+cd backend
+uv run alembic upgrade head
+uv run python -m app.tasks.bootstrap_admin
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+从前端目录运行 `npm run dev`，选择上述账号登录。管理页面使用同源 `/api/v1`。Access Token 保留在前端内存中，刷新 Cookie 由浏览器自动处理。默认普通用户只可读本人记录，部门主管按显式授权读取，管理写操作由超级管理员执行。部门负责人字段与主管数据授权是两项独立配置。退出、改密和账户停用均会撤销对应会话。
+
+供应商凭据由 LiteLLM 运行环境注入。模型连通性检查需要 FastAPI 能访问 LiteLLM 私有地址，配置 `APP_LITELLM_URL` 和具有对应健康接口权限的 `APP_LITELLM_ADMIN_KEY`。未配置时返回 `unavailable`。
+
+子 Key 由管理员授权，所有者领取一次。Key 哈希和掩码用于本地登记。API 返回 `gateway_status=not_synced`，当前签发的 Key 无法调用模型。配额可保存和查询，限额与告警由后续网关接入实现。首页、Token 统计、调用记录、操作日志、风险告警和系统设置仍为有标记的演示页面。
+
+集成测试需要独立 PostgreSQL 数据库。数据库名需以 `_stage_six` 结尾，配置 `APP_DB_*`，应用迁移后使用 `TEST_GATEWAY_POSTGRES=1` 运行 `uv run pytest -q`。测试会写入合成记录，请使用可回收的测试库。
+
+## 网关实施状态
+
+阶段七采用 FastAPI 统一鉴权代理。客户端继续使用平台子 Key。推理入口由 FastAPI 校验 Key、组织归属、模型与额度，再用独立的服务凭据访问私网 LiteLLM。当前版本已提供管理 API 和子 Key 本地生命周期。推理转发、流式用量采集和结算待实施，`not_synced` 是当前接口的占位值。
+
+本地运行使用自备测试凭据。提交时仅保留环境变量名称或空占位符。部署前的凭据隔离与日志检查见 [安全设计](docs/SECURITY.md)。

@@ -6,6 +6,13 @@ from sqlalchemy import Connection, pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import Settings
+from app.models import (  # noqa: F401
+    access,  # noqa: F401
+    auth,
+    model_catalog,
+    organization,
+    project,
+)
 from app.models.base import Base
 
 config = context.config
