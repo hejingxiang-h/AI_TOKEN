@@ -18,64 +18,6 @@ const status = f('status', '状态', ['启用', '停用'])
 const dept = f('department', '部门', ['研发中心', '数据平台', '产品运营', '安全合规'])
 export const sections: Section[] = [
   {
-    path: 'users',
-    title: '用户管理',
-    icon: 'Users',
-    group: '组织管理',
-    fields: [
-      f('name', '用户姓名'),
-      { key: 'email', label: '邮箱', kind: 'email' },
-      dept,
-      f('role', '角色', ['普通用户', '部门主管', '超级管理员']),
-      status,
-    ],
-  },
-  {
-    path: 'departments',
-    title: '部门管理',
-    icon: 'OfficeBuilding',
-    group: '组织管理',
-    fields: [f('name', '部门名称'), f('owner', '部门主管'), number('members', '成员数'), status],
-  },
-  {
-    path: 'projects',
-    title: '项目管理',
-    icon: 'Folder',
-    group: '组织管理',
-    fields: [f('name', '项目名称'), dept, f('owner', '负责人'), status],
-  },
-  {
-    path: 'keys',
-    title: 'API Key 管理',
-    icon: 'Key',
-    group: '模型与额度',
-    fields: [f('name', 'Key 名称'), f('owner', '所有人'), f('project', '项目'), status],
-  },
-  {
-    path: 'quotas',
-    title: '配额管理',
-    icon: 'Coin',
-    group: '模型与额度',
-    fields: [
-      f('name', '策略名称'),
-      f('scope', '范围', ['项目', 'API Key']),
-      number('limit', '月度额度 USD'),
-      status,
-    ],
-  },
-  {
-    path: 'models',
-    title: '模型管理',
-    icon: 'Cpu',
-    group: '模型与额度',
-    fields: [
-      f('name', '模型名称'),
-      f('provider', '供应商', ['OpenAI', 'DeepSeek', 'Anthropic']),
-      f('protocol', '协议', ['Chat Completions', 'Messages']),
-      status,
-    ],
-  },
-  {
     path: 'calls',
     title: '调用记录',
     icon: 'Tickets',
@@ -118,18 +60,6 @@ export const sections: Section[] = [
     ],
   },
   {
-    path: 'roles',
-    title: '角色权限',
-    icon: 'Lock',
-    group: '系统管理',
-    fields: [
-      f('name', '角色名称'),
-      f('scope', '数据范围', ['本人', '授权部门', '全公司']),
-      f('description', '权限说明'),
-      status,
-    ],
-  },
-  {
     path: 'settings',
     title: '系统设置',
     icon: 'Setting',
@@ -142,10 +72,6 @@ export const departments = ['研发中心', '数据平台', '产品运营', '安
 export const modelNames = ['gpt-4.1-mini', 'deepseek-chat', 'claude-sonnet']
 const people = ['林远', '李言', '陈予', '周楠', '王宁', '刘云']
 const names: Record<string, string[]> = {
-  departments,
-  projects: ['智能研发助手', '知识检索', '数据分析平台', '工单助手'],
-  models: modelNames,
-  roles: ['普通用户', '部门主管', '超级管理员'],
   settings: ['企业时区', '默认币种', '审计保留天数'],
   alerts: ['预算阈值触发', '上游失败率升高', '凭据风险信号'],
   audit: ['更新模型路由', '签发子 Key', '调整项目额度'],

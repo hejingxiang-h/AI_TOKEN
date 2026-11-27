@@ -87,12 +87,16 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 供应商凭据由 LiteLLM 运行环境注入。模型连通性检查需要 FastAPI 能访问 LiteLLM 私有地址，配置 `APP_LITELLM_URL` 和具有对应健康接口权限的 `APP_LITELLM_ADMIN_KEY`。未配置时返回 `unavailable`。
 
-子 Key 由管理员授权，所有者领取一次。Key 哈希和掩码用于本地登记。API 返回 `gateway_status=not_synced`，当前签发的 Key 无法调用模型。配额可保存和查询，限额与告警由后续网关接入实现。首页、Token 统计、调用记录、操作日志、风险告警和系统设置仍为有标记的演示页面。
+子 Key 由管理员授权，所有者领取一次。Key 哈希和掩码用于本地登记。网关通过该 Key 进行模型准入。模型路由和用量详情见阶段七说明。首页、Token 统计、调用记录、操作日志、风险告警和系统设置仍为有标记的演示页面。
 
 集成测试需要独立 PostgreSQL 数据库。数据库名需以 `_stage_six` 结尾，配置 `APP_DB_*`，应用迁移后使用 `TEST_GATEWAY_POSTGRES=1` 运行 `uv run pytest -q`。测试会写入合成记录，请使用可回收的测试库。
 
-## 网关实施状态
+## 阶段七模型网关
 
-阶段七采用 FastAPI 统一鉴权代理。客户端继续使用平台子 Key。推理入口由 FastAPI 校验 Key、组织归属、模型与额度，再用独立的服务凭据访问私网 LiteLLM。当前版本已提供管理 API 和子 Key 本地生命周期。推理转发、流式用量采集和结算待实施，`not_synced` 是当前接口的占位值。
+部署入口下的 `/v1/models`、`/v1/chat/completions` 和 `/v1/messages` 由 FastAPI 鉴权后转发至私网 LiteLLM。`/v1/responses` 默认关闭，可在候选环境显式启用。服务 Virtual Key 只在后端配置，客户端继续使用平台子 Key。
 
-本地运行使用自备测试凭据。提交时仅保留环境变量名称或空占位符。部署前的凭据隔离与日志检查见 [安全设计](docs/SECURITY.md)。
+运行前应用 Alembic 迁移、部署 Redis，并配置 `APP_LITELLM_SERVICE_KEY`、匹配的模型别名、已核实的 `APP_GATEWAY_INPUT_BOUNDS`、有效 USD 价目与适用配额。业务部署的 LiteLLM 模型列表初始为空，由运维加载授权路由和供应商凭据。操作示例与实际验证覆盖见 [SDK 示例](docs/GATEWAY_SDK.md) 和 [验收报告](docs/GATEWAY_TEST_REPORT.md)。
+
+DeepSeek 普通响应、SSE 和平台结算已在隔离环境通过真实调用验证。生产部署、服务 Virtual Key 和真实工具调用待验收。供应商凭据仅在服务端加载，本地环境文件由 Git 忽略。
+
+凭据隔离、日志和提交前检查见 [安全设计](docs/SECURITY.md)。

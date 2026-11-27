@@ -2,10 +2,15 @@
 import { ElDialog } from 'element-plus'
 const open = defineModel<boolean>({ required: true })
 defineProps<{ title: string; readonly?: boolean }>()
-defineEmits<{ submit: [] }>()
+defineEmits<{ submit: []; closed: [] }>()
 </script>
 <template>
-  <ElDialog v-model="open" :title="title" width="min(530px, 94vw)" destroy-on-close
+  <ElDialog
+    v-model="open"
+    :title="title"
+    width="min(530px, 94vw)"
+    destroy-on-close
+    @closed="$emit('closed')"
     ><form @submit.prevent="$emit('submit')">
       <slot />
       <div class="modal-actions">

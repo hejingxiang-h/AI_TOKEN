@@ -1,29 +1,44 @@
 <script setup lang="ts">
+import { isAxiosError } from 'axios'
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-const user = ref(''),
-  password = ref(''),
-  error = ref('')
-const router = useRouter(),
-  route = useRoute()
-async function login() {
-  if (!user.value.trim() || password.value.length < 6) {
-    error.value = '请输入演示用户名和至少 6 位演示口令。'
+import { useAuth } from '../stores/auth'
+
+const user = ref('')
+const password = ref('')
+const error = ref('')
+const loading = ref(false)
+const router = useRouter()
+const route = useRoute()
+const auth = useAuth()
+
+async function login(): Promise<void> {
+  if (loading.value) return
+  if (!user.value.trim() || !password.value) {
+    error.value = '请输入用户名和密码。'
     return
   }
+  error.value = ''
+  loading.value = true
   try {
-    sessionStorage.setItem('gateway-demo-session', user.value.trim())
-  } catch {
-    error.value = '无法使用浏览器会话存储。'
-    return
+    await auth.login(user.value.trim(), password.value)
+    const next =
+      typeof route.query.next === 'string' && /^\/(?!\/)/.test(route.query.next)
+        ? route.query.next
+        : '/'
+    await router.replace(next)
+  } catch (cause) {
+    error.value =
+      isAxiosError(cause) && cause.response?.status === 401
+        ? '用户名、密码或账号状态无效。'
+        : '无法登录，请检查服务配置和网络后重试。'
+  } finally {
+    password.value = ''
+    loading.value = false
   }
-  const next =
-    typeof route.query.next === 'string' && /^\/(?!\/)/.test(route.query.next)
-      ? route.query.next
-      : '/'
-  await router.replace(next)
 }
 </script>
+
 <template>
   <main class="login">
     <section class="login-brand">
@@ -32,19 +47,18 @@ async function login() {
       <p>企业 AI 用量与模型治理工作台</p>
     </section>
     <section class="login-content">
-      <form class="card login-card" novalidate @submit.prevent="login">
-        <span class="demo-label">模拟环境</span>
+      <form class="card login-card" @submit.prevent="login">
         <h2>登录管理后台</h2>
-        <p>使用任意演示用户名和至少 6 位演示口令。请勿填写真实凭据。</p>
-        <label>用户名<input v-model="user" autocomplete="off" placeholder="输入演示用户名" /></label
-        ><label
-          >演示口令<input
+        <label>用户名<input v-model="user" autocomplete="username" maxlength="254" /></label>
+        <label
+          >密码<input
             v-model="password"
             type="password"
-            autocomplete="off"
-            placeholder="至少 6 位" /></label
-        ><small v-if="error" role="alert">{{ error }}</small
-        ><button class="primary">登录演示工作区</button>
+            autocomplete="current-password"
+            maxlength="256"
+        /></label>
+        <small v-if="error" role="alert">{{ error }}</small>
+        <button class="primary" :disabled="loading">{{ loading ? '正在登录…' : '登录' }}</button>
       </form>
     </section>
   </main>

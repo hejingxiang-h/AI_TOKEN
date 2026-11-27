@@ -16,7 +16,14 @@ router = APIRouter(prefix="/api/v1", tags=["keys and quotas"])
 
 
 def access_service(db: Database, actor: Actor, request: Request) -> AccessService:
-    return AccessService(AccessRepository(db, actor), getattr(request.state, "request_id", None))
+    config = request.app.state.settings
+    key = config.app_litellm_service_key
+    available = bool(config.app_litellm_url and key and key.get_secret_value())
+    return AccessService(
+        AccessRepository(db, actor),
+        getattr(request.state, "request_id", None),
+        gateway_configured=available,
+    )
 
 
 Access = Annotated[AccessService, Depends(access_service)]

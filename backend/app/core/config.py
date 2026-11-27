@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[3] / ".env",
         extra="ignore",
+        env_ignore_empty=True,
     )
 
     app_name: str = "AI Token Gateway"
@@ -28,6 +29,18 @@ class Settings(BaseSettings):
     app_secure_cookies: bool = True
     app_litellm_url: HttpUrl | None = None
     app_litellm_admin_key: SecretStr | None = None
+
+    app_litellm_service_key: SecretStr | None = None
+    app_gateway_callback_secret: SecretStr | None = None
+    app_gateway_responses_enabled: bool = False
+    app_gateway_input_bounds: dict[str, Annotated[int, Field(gt=0, le=2_000_000)]] = Field(
+        default_factory=dict
+    )
+    app_gateway_output_limit: Annotated[int, Field(gt=0, le=65536)] = 1024
+    app_gateway_rpm: Annotated[int, Field(gt=0, le=1000000)] = 60
+    app_gateway_tpm: Annotated[int, Field(gt=0, le=1000000000)] = 200000
+    app_gateway_parallel: Annotated[int, Field(gt=0, le=10000)] = 4
+    app_gateway_deadline: Annotated[int, Field(ge=1, le=300)] = 120
 
     app_db_host: str = "127.0.0.1"
     app_db_port: Port = 5432

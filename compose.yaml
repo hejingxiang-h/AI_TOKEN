@@ -48,8 +48,11 @@ services:
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?Set LITELLM_SALT_KEY in .env}
       LITELLM_TELEMETRY: "False"
       LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      APP_GATEWAY_CALLBACK_BASE_URL: http://backend:8000
+      APP_GATEWAY_CALLBACK_SECRET: ${APP_GATEWAY_CALLBACK_SECRET:-}
     volumes:
       - ./deploy/litellm/config.yaml:/app/gateway.yaml:ro
+      - ./deploy/litellm/gateway_callback.py:/app/gateway_callback.py:ro
     networks: [gateway, proxy-data]
     depends_on:
       postgres:
@@ -68,6 +71,19 @@ services:
       APP_REDIS_HOST: redis
       APP_REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-}
+      APP_LITELLM_URL: http://litellm:4000
+      APP_LITELLM_ADMIN_KEY: ${APP_LITELLM_ADMIN_KEY:-}
+      APP_LITELLM_SERVICE_KEY: ${APP_LITELLM_SERVICE_KEY:-}
+      APP_GATEWAY_INPUT_BOUNDS: ${APP_GATEWAY_INPUT_BOUNDS:-}
+      APP_GATEWAY_RESPONSES_ENABLED: ${APP_GATEWAY_RESPONSES_ENABLED:-false}
+      APP_GATEWAY_OUTPUT_LIMIT: ${APP_GATEWAY_OUTPUT_LIMIT:-1024}
+      APP_GATEWAY_RPM: ${APP_GATEWAY_RPM:-60}
+      APP_GATEWAY_TPM: ${APP_GATEWAY_TPM:-200000}
+      APP_GATEWAY_PARALLEL: ${APP_GATEWAY_PARALLEL:-4}
+      APP_GATEWAY_DEADLINE: ${APP_GATEWAY_DEADLINE:-120}
+      APP_GATEWAY_CALLBACK_SECRET: ${APP_GATEWAY_CALLBACK_SECRET:-}
+      APP_SECURE_COOKIES: ${APP_SECURE_COOKIES:-true}
       APP_DOCS_ENABLED: ${APP_DOCS_ENABLED:-true}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       APP_CORS_ORIGINS: '${APP_CORS_ORIGINS:-["http://localhost:5173","http://127.0.0.1:5173"]}'

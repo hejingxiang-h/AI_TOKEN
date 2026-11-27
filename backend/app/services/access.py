@@ -24,9 +24,12 @@ TARGETS = {
 
 
 class AccessService(OrganizationService):
-    def __init__(self, repo: AccessRepository, request_id: str | None) -> None:
+    def __init__(
+        self, repo: AccessRepository, request_id: str | None, *, gateway_configured: bool = False
+    ) -> None:
         super().__init__(repo, request_id)
         self.access = repo
+        self.gateway_status = "unknown" if gateway_configured else "unavailable"
 
     async def check_models(self, ids: list[UUID]) -> None:
         active = await self.db.scalars(
@@ -70,6 +73,7 @@ class AccessService(OrganizationService):
             else item.state,
             hint=key.hint if key else None,
             last_used_at=key.last_used_at if key else None,
+            gateway_status=self.gateway_status,
         )
 
     async def grant(self, data: KeyInput) -> KeyRecord:
@@ -106,7 +110,7 @@ class AccessService(OrganizationService):
         )
         item.state = "active"
         await self.finish("key.claimed", item.id, "key_grant")
-        return KeySecret(key=secret)
+        return KeySecret(key=secret, gateway_status=self.gateway_status)
 
     async def change_key(self, target: UUID, state: str) -> KeyRecord:
         await self.lock()

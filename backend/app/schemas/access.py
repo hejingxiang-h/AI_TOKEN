@@ -27,12 +27,12 @@ class KeyRecord(KeyInput):
     state: str
     hint: str | None
     last_used_at: datetime | None
-    gateway_status: Literal["not_synced"] = "not_synced"
+    gateway_status: Literal["unavailable", "unknown"] = "unknown"
 
 
 class KeySecret(BaseModel):
     key: str
-    gateway_status: Literal["not_synced"] = "not_synced"
+    gateway_status: Literal["unavailable", "unknown"] = "unknown"
 
 
 class QuotaInput(BaseModel):

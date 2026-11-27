@@ -9,6 +9,7 @@ from app.core.config import Settings
 from app.models import (  # noqa: F401
     access,  # noqa: F401
     auth,
+    gateway,
     model_catalog,
     organization,
     project,

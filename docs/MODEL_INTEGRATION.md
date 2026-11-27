@@ -2,6 +2,13 @@
 
 核对日期为 2026-11-27。GitHub 最新正式发布和 PyPI 均指向 **LiteLLM 1.111.0**。PoC 固定该版本，使用本地合成模型服务、合成 Key 和无商业许可证的进程。所有真实供应商、合同价目、区域网络和客户端生产配置仍待验证。 [正式发布](https://github.com/BerriAI/litellm/releases/tag/v1.111.0) · [PyPI 版本](https://pypi.org/project/litellm/1.111.0/)
 
+## 阶段七代理接入
+
+- P0 发布 Chat Completions 和 Anthropic Messages，经 FastAPI 网关准入；Responses 保持候选。FastAPI 丢弃客户端的鉴权头和身份保留字段，以服务 Virtual Key 调用 LiteLLM。平台子 Key 不在代理注册。
+- FastAPI 在 PostgreSQL 保存 `request_id` 与用户、部门、项目、Key 的可信快照。本机 LiteLLM 1.111.0 源码确认内部请求路径可读取 `x-litellm-call-id`，以及 Messages、Responses 等路由有 `litellm_metadata` 容器。首版仅传必要的不透明请求关联 ID。自定义字段写入代理日志、回调及上游隔离仍须逐协议测试。
+- 非流式采集最终 usage。Chat SSE 按经验证的 `stream_options.include_usage` 收集最终帧，Anthropic 合并 `message_start` 与 `message_delta` 的累计字段，Responses 候选读取终态事件。缺失用量或断流时保留待核对，使用验证过的代理日志、脱敏回调或供应商凭据账单补充。平台按价格快照结算。
+- 逐路由使用合成 ID 对比 FastAPI、LiteLLM 日志及回调，检查模拟供应商收到的实际请求。测试伪造身份、SSE 中断、重复回调和代理凭据泄漏边界。详情见 [阶段七架构决策](poc/litellm/GATEWAY_ARCHITECTURE_DECISION.md)。
+
 ## 能力矩阵
 
 | 能力 | 官方证据和许可 | 验证条件及边界 |

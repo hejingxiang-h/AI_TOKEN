@@ -1,3 +1,6 @@
+import { management } from '../api/management'
+import ManagementView from '../views/ManagementView.vue'
+import { useAuth } from '../stores/auth'
 import { createRouter, createWebHistory } from 'vue-router'
 import AppLayout from '../layouts/AppLayout.vue'
 import { sections } from '../mock/catalog'
@@ -21,6 +24,12 @@ const router = createRouter({
           props: { statistics: true },
           meta: { title: 'Token 统计' },
         },
+        ...management.map((section) => ({
+          path: section.path,
+          component: ManagementView,
+          props: { section },
+          meta: { title: section.title, live: true },
+        })),
         ...sections.map((section) => ({
           path: section.path,
           component: RecordsView,
@@ -33,13 +42,10 @@ const router = createRouter({
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
   ],
 })
-router.beforeEach((to) => {
-  try {
-    const signed = Boolean(sessionStorage.getItem('gateway-demo-session'))
-    if (to.path !== '/login' && !signed) return { path: '/login', query: { next: to.fullPath } }
-    if (to.path === '/login' && signed) return '/dashboard'
-  } catch {
-    if (to.path !== '/login') return '/login'
-  }
+router.beforeEach(async (to) => {
+  const auth = useAuth()
+  await auth.restore()
+  if (to.path !== '/login' && !auth.user) return { path: '/login', query: { next: to.fullPath } }
+  if (to.path === '/login' && auth.user) return '/dashboard'
 })
 export default router

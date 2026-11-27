@@ -18,6 +18,18 @@
 
 JWT 会话与模型凭据按接口分离。管理 API 使用 Pydantic 2.x 校验。列表统一分页和明确排序，金额使用十进制字符串和 ISO 币种，时间使用 ISO 8601。服务端固定权限范围后再应用客户端筛选。不存在或越过数据范围的详情使用 404，已知用户缺少动作权限使用 403。
 
+## 阶段六实际接口
+
+以下是阶段六 FastAPI 暴露的主要路径，均以 `/api/v1` 开头。后续网关、账务和告警仍使用上文及后文的设计契约。
+
+| 模块 | 已实现接口 |
+| --- | --- |
+| 会话 | `POST /auth/login`、`/auth/refresh`、`/auth/logout`、`/auth/password`；`GET /me`。Refresh Token 使用 HttpOnly Cookie。 |
+| 组织 | 用户、部门、项目的列表、详情、写入和状态变更；部门树、部门成员、主管授权、项目成员；`GET /roles`。 |
+| 模型 | `GET/POST /providers`、`PATCH /providers/{id}`；`GET/POST /model-routes`、`GET/PATCH /model-routes/{id}`、`GET/POST /model-routes/{id}/prices`、`POST /model-routes/{id}/probe`。供应商凭据在 LiteLLM 运行环境配置。 |
+| 子 Key | `GET /keys`、`GET /keys/{id}`、`POST /keys/grants`、`POST /keys/{id}/claim`、`PATCH /keys/{id}`。状态变更限超级管理员，领取限所有者。Key 业务状态由 FastAPI 推理准入检查。 |
+| 配额 | `GET/POST /quotas`、`GET/PUT /quotas/{id}`。金额以 USD 计，租户级规则仅管理员可读。普通用户读取本人或自己的 Key 配额，主管可额外读取授权部门及范围内用户和 Key 的配额。项目共享规则仅管理员可读。 |
+
 ## 模型接口
 
 | 方法与路径 | 凭据 | 发布范围 |
@@ -36,3 +48,9 @@ JWT 会话与模型凭据按接口分离。管理 API 使用 Pydantic 2.x 校验
 2. 适配器按代理调用标识和终态类型生成稳定事件 ID，重投保持同一事件 ID、同一正文及新的签名时间。签名与时间窗见 [安全设计](SECURITY.md#回调认证与重放防护)。5xx 和暂时性网络失败可退避重试；401、403、409 及不可恢复的 4xx 记录原因并进入人工处理。
 3. 消费任务对 inbox 行加租约，按请求 ID 或唯一代理关联 ID 匹配原账务。先到回调、迟到、重复和乱序允许安全重跑。已结算的冲突数据进入复核，未结算的数据须通过来源、完整性和模型版本核对。
 4. 异步钩子不可保证宕机时送达。接收端持久化只保护已收到事件。若代理内无法可靠持久化发送，使用平台流响应证据、定期核对待结算调用以及验证过的代理日志 API 补偿。限次重试后保留失败状态，人工核对及追加分录留痕。
+
+## 阶段七当前实现
+
+`GET /v1/models` 按有效子 Key 和平台模型授权列出目录。JSON/SSE 转发覆盖 Chat Completions、Messages，以及显式启用的 Responses 候选。每个目录别名注册一个推理协议。模型路由状态与管理接口的 Key 业务状态独立，`gateway_status` 目前报告 `unavailable` 或 `unknown`，后者表示已配置但尚未报告实时连通性。
+
+`POST /internal/v1/gateway/usage` 仅私网。回调体包含 `event_id`、`request_id`、`proxy_call_id` 和规范 usage。回调头 `X-Hook-Timestamp` 是 Unix 秒，`X-Hook-Signature` 是 HMAC-SHA-256 十六进制签名，签名内容为时间戳、HTTP 方法、该路径和原始正文 SHA-256，各项用换行连接。重复且同内容返回 204，冲突返回 409。下文的完整事件 Inbox 契约仍作为后续对账扩展。
