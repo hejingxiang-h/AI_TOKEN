@@ -1,0 +1,27 @@
+model_list:
+  - model_name: poc-openai
+    litellm_params:
+      model: openai/gpt-4.1-mini
+      api_base: os.environ/POC_OPENAI_BASE
+      api_key: os.environ/POC_FAKE_PROVIDER_KEY
+  - model_name: poc-deepseek
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_base: os.environ/POC_UPSTREAM_ROOT
+      api_key: os.environ/POC_FAKE_PROVIDER_KEY
+  - model_name: poc-claude
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5-20250929
+      api_base: os.environ/POC_UPSTREAM_ROOT
+      api_key: os.environ/POC_FAKE_PROVIDER_KEY
+general_settings:
+  master_key: os.environ/POC_MASTER_KEY
+  store_model_in_db: false
+  disable_requester_ip_address_logging: true
+  proxy_batch_write_at: 2
+litellm_settings:
+  callbacks: ["poc_callback.handler"]
+  turn_off_message_logging: true
+  num_retries: 0
+router_settings:
+  num_retries: 0

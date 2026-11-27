@@ -1,0 +1,9 @@
+proxy_pass http://gateway_backend;
+proxy_http_version 1.1;
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header Connection "";
+proxy_buffering off;
+proxy_request_buffering off;
+proxy_read_timeout 300s;

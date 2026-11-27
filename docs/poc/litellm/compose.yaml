@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: litellm_poc
+      POSTGRES_USER: litellm_poc
+      POSTGRES_PASSWORD: ${POC_PG_PASSWORD:?Set POC_PG_PASSWORD}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "litellm_poc", "-d", "litellm_poc"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    tmpfs: ["/var/lib/postgresql/data"]
+  fixture:
+    image: python:3.12-slim
+    command: ["python", "/poc/fixture.py"]
+    volumes: ["./fixture.py:/poc/fixture.py:ro"]
+    environment:
+      POC_FIXTURE_BIND: "0.0.0.0"
+    ports: ["127.0.0.1:18088:18088"]
+  proxy:
+    image: ghcr.io/berriai/litellm:v1.111.0
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./poc_callback.py:/app/poc_callback.py:ro
+    environment:
+      POC_MASTER_KEY: ${POC_MASTER_KEY:?Set POC_MASTER_KEY}
+      POC_FAKE_PROVIDER_KEY: ${POC_FAKE_PROVIDER_KEY:?Set POC_FAKE_PROVIDER_KEY}
+      POC_UPSTREAM_ROOT: "http://fixture:18088"
+      POC_OPENAI_BASE: "http://fixture:18088/v1"
+      DATABASE_URL: "postgresql://litellm_poc:${POC_PG_PASSWORD:?Set POC_PG_PASSWORD}@postgres:5432/litellm_poc"
+      LITELLM_SALT_KEY: ${POC_SALT_KEY:?Set POC_SALT_KEY}
+      LITELLM_TELEMETRY: "False"
+    ports: ["127.0.0.1:18400:4000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      fixture:
+        condition: service_started
