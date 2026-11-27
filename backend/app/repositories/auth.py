@@ -45,6 +45,7 @@ class AuthRepository:
         *,
         result: str = "success",
         target_type: str = "user_account",
+        change_summary: dict | None = None,
     ) -> None:
         self.db.add(
             AuditEvent(
@@ -55,5 +56,6 @@ class AuthRepository:
                 target_id=target,
                 request_id=request_id,
                 result=result,
+                change_summary=change_summary,
             )
         )

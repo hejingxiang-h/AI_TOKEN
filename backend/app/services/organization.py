@@ -49,9 +49,16 @@ class OrganizationService:
             await self.db.rollback()
             raise HTTPException(409, "Resource conflicts with existing data") from exc
 
-    async def finish(self, action: str, target: UUID, target_type: str) -> None:
+    async def finish(
+        self, action: str, target: UUID, target_type: str, summary: dict | None = None
+    ) -> None:
         self.auth.audit(
-            self.repo.actor.user_id, action, target, self.request_id, target_type=target_type
+            self.repo.actor.user_id,
+            action,
+            target,
+            self.request_id,
+            target_type=target_type,
+            change_summary=summary,
         )
         await self.flush()
         await self.db.commit()
@@ -72,7 +79,9 @@ class OrganizationService:
         self.db.add(item)
         await self.flush()
         self.db.add(UserRole(user_id=item.id, role_code=data.role))
-        await self.finish("user.created", item.id, "user_account")
+        await self.finish(
+            "user.created", item.id, "user_account", {"role": data.role, "state": item.state}
+        )
         return item
 
     async def patch_user(self, target: UUID, data: UserPatch) -> UserAccount:
@@ -114,7 +123,18 @@ class OrganizationService:
         if changed:
             item.auth_epoch += 1
             await self.auth.revoke_sessions(item.id, datetime.now(UTC))
-        await self.finish("user.updated", target, "user_account")
+        action = "user.disabled" if data.state == "disabled" else "user.updated"
+        await self.finish(
+            action,
+            target,
+            "user_account",
+            {
+                "fields": sorted(data.model_fields_set),
+                "role_before": current_role,
+                "role_after": data.role or current_role,
+                "state": item.state,
+            },
+        )
         return item
 
     async def department_change(
@@ -143,7 +163,10 @@ class OrganizationService:
         self.db.add(item)
         await self.flush()
         await self.finish(
-            "department.updated" if target else "department.created", item.id, "department"
+            "department.updated" if target else "department.created",
+            item.id,
+            "department",
+            {"fields": sorted(data.model_fields_set), "state": item.state},
         )
         return item
 
@@ -161,7 +184,7 @@ class OrganizationService:
             )
         else:
             record.state = state
-        await self.finish("department.scope_updated", department, "department")
+        await self.finish("department.scope_updated", department, "department", {"state": state})
 
     async def project_change(
         self, data: ProjectCreate | ProjectPatch, target: UUID | None = None
@@ -173,7 +196,12 @@ class OrganizationService:
                 setattr(item, name, value)
         self.db.add(item)
         await self.flush()
-        await self.finish("project.updated" if target else "project.created", item.id, "project")
+        await self.finish(
+            "project.updated" if target else "project.created",
+            item.id,
+            "project",
+            {"fields": sorted(data.model_fields_set), "state": item.state},
+        )
         return item
 
     async def project_member(
@@ -212,4 +240,6 @@ class OrganizationService:
             else:
                 membership.department_id = data.department_id
                 membership.state = "active"
-        await self.finish("project.membership_updated", project_id, "project")
+        await self.finish(
+            "project.membership_updated", project_id, "project", {"state": data.state}
+        )

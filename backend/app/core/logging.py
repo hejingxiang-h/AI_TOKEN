@@ -3,7 +3,7 @@ import logging
 from datetime import UTC, datetime
 from logging.config import dictConfig
 from time import perf_counter
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -42,6 +42,35 @@ def configure_logging(level: str) -> None:
     )
 
 
+async def audit_rejected_management(scope: Scope, status: int, request_id: str) -> None:
+    actor = scope.get("state", {}).get("management_actor")
+    method = scope["method"]
+    route = getattr(scope.get("route"), "path", "")
+    if not actor or status < 400 or method not in {"POST", "PUT", "PATCH", "DELETE"} or not route:
+        return
+
+    from app.repositories.auth import AuthRepository
+
+    target = scope.get("path_params", {}).get("target")
+    try:
+        target_id = UUID(str(target)) if target else None
+    except ValueError:
+        target_id = None
+    try:
+        async with scope["app"].state.session_factory.begin() as db:
+            AuthRepository(db).audit(
+                actor,
+                "management.rejected",
+                target_id,
+                request_id,
+                result="denied" if status < 500 else "failed",
+                target_type="management",
+                change_summary={"status": status, "route": route, "method": method},
+            )
+    except Exception:
+        logging.getLogger(__name__).warning("management audit write unavailable")
+
+
 class RequestLoggingMiddleware:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -69,6 +98,7 @@ class RequestLoggingMiddleware:
         try:
             await self.app(scope, receive, send_with_request_id)
         finally:
+            await audit_rejected_management(scope, status_code, request_id)
             route = scope.get("route")
             self.logger.info(
                 "http_request",

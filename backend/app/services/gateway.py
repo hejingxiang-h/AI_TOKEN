@@ -33,6 +33,9 @@ async def admit(
     protocol: Protocol,
     model: str,
     output: int,
+    *,
+    source_ip: str | None = None,
+    client_type: str | None = None,
 ) -> Admission:
     repo = GatewayRepository(db)
     await repo.lock()
@@ -75,6 +78,8 @@ async def admit(
         price_id=price.id,
         currency=price.currency,
         protocol=protocol,
+        source_ip=source_ip,
+        client_type=client_type,
         started_at=now,
         status="dispatching",
         settlement="reserved",
@@ -137,6 +142,9 @@ async def reject(
     db: AsyncSession, repo: GatewayRepository, record: GatewayRequest, status: str
 ) -> None:
     record.status, record.settlement, record.finished_at = status, "released", datetime.now(UTC)
+    record.risk_state = (
+        "flagged" if status in ("rate_denied", "admission_unavailable") else "unmarked"
+    )
     db.add(record)
     await db.flush()
     repo.event(record.id, status)

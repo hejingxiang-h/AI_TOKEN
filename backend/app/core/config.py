@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -15,6 +16,12 @@ class Settings(BaseSettings):
         extra="ignore",
         env_ignore_empty=True,
     )
+
+    app_risk_interval: Annotated[int, Field(ge=5, le=300)] = 30
+    app_risk_frequency: Annotated[int, Field(gt=0)] = 100
+    app_risk_high_cost_usd: Annotated[Decimal, Field(gt=0)] = Decimal("10")
+    app_risk_provider_errors: Annotated[int, Field(gt=0)] = 5
+    app_risk_invalid_keys: Annotated[int, Field(gt=0)] = 10
 
     app_enterprise_timezone: str = "Asia/Shanghai"
     app_name: str = "AI Token Gateway"

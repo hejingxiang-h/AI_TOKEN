@@ -18,7 +18,7 @@ class CatalogService:
         item = Provider(code=data.code.lower(), state=data.state)
         self.db.add(item)
         await self.manager.flush()
-        await self.manager.finish("provider.created", item.id, "provider")
+        await self.manager.finish("provider.created", item.id, "provider", {"state": item.state})
         return item
 
     async def create_model(self, data: ModelInput) -> ModelRoute:
@@ -26,13 +26,20 @@ class CatalogService:
         item = ModelRoute(**data.model_dump())
         self.db.add(item)
         await self.manager.flush()
-        await self.manager.finish("model.created", item.id, "model_route")
+        await self.manager.finish(
+            "model.created",
+            item.id,
+            "model_route",
+            {"state": item.state, "protocol": item.protocol},
+        )
         return item
 
     async def state[T: (Provider, ModelRoute)](self, model: type[T], target: UUID, state: str) -> T:
         item = await self.manager.require(model, target)
         item.state = state
-        await self.manager.finish("catalog.state_updated", item.id, item.__tablename__)
+        await self.manager.finish(
+            "catalog.state_updated", item.id, item.__tablename__, {"state": state}
+        )
         return item
 
     async def price(self, target: UUID, data: PriceInput) -> PriceVersion:
@@ -52,7 +59,9 @@ class CatalogService:
         item = PriceVersion(model_route_id=target, **data.model_dump())
         self.db.add(item)
         await self.manager.flush()
-        await self.manager.finish("price.created", item.id, "price_version")
+        await self.manager.finish(
+            "price.created", item.id, "price_version", {"currency": data.currency}
+        )
         return item
 
     async def probe(self, target: UUID, client: LiteLLM) -> ProbeResult:
@@ -67,5 +76,10 @@ class CatalogService:
             status = "healthy" if healthy and not unhealthy else "unhealthy"
         except HTTPException:
             status = "unavailable"
-        await self.manager.finish("model.probed_" + status, item.id, "model_route")
+        await self.manager.finish(
+            "model.probed_" + status,
+            item.id,
+            "model_route",
+            {"state": item.state, "protocol": item.protocol},
+        )
         return ProbeResult(status=status)

@@ -7,6 +7,7 @@ import { sections } from '../mock/catalog'
 import DashboardView from '../views/DashboardView.vue'
 import LoginView from '../views/LoginView.vue'
 import RecordsView from '../views/RecordsView.vue'
+import RiskView from '../views/RiskView.vue'
 import SystemHealthView from '../views/SystemHealthView.vue'
 const router = createRouter({
   history: createWebHistory(),
@@ -36,8 +37,15 @@ const router = createRouter({
           props: { recordsOnly: true },
           meta: { title: '调用记录', live: true },
         },
+        {
+          path: 'audit',
+          component: RiskView,
+          props: { audit: true },
+          meta: { title: '操作日志', live: true },
+        },
+        { path: 'alerts', component: RiskView, meta: { title: '风险告警', live: true } },
         ...sections
-          .filter((section) => section.path !== 'calls')
+          .filter((section) => !['calls', 'audit', 'alerts'].includes(section.path))
           .map((section) => ({
             path: section.path,
             component: RecordsView,

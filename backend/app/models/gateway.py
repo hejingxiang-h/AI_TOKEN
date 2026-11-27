@@ -20,6 +20,9 @@ class GatewayRequest(Base):
     provider_id: Mapped[UUID] = mapped_column(ForeignKey("provider.id"))
     price_id: Mapped[UUID] = mapped_column(ForeignKey("price_version.id"))
     currency: Mapped[str] = mapped_column(String(3))
+    source_ip: Mapped[str | None] = mapped_column(String(45))
+    client_type: Mapped[str | None] = mapped_column(String(24))
+    risk_state: Mapped[str] = mapped_column(String(16), server_default="unmarked")
     protocol: Mapped[str] = mapped_column(String(24))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -33,6 +36,12 @@ class GatewayRequest(Base):
     reserved_cost: Mapped[Decimal] = mapped_column(Numeric(30, 12))
     platform_cost: Mapped[Decimal | None] = mapped_column(Numeric(30, 12))
     supplier_cost: Mapped[Decimal | None] = mapped_column(Numeric(30, 12))
+
+    @property
+    def duration_ms(self) -> float | None:
+        if self.finished_at is None:
+            return None
+        return round((self.finished_at - self.started_at).total_seconds() * 1000, 3)
 
 
 class GatewayEvent(Base):

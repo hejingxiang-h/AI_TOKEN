@@ -10,7 +10,7 @@ from app.models.access import KeyGrant
 from app.models.auth import UserAccount
 from app.models.gateway import GatewayRequest as Ledger
 from app.models.model_catalog import ModelRoute, Provider
-from app.models.organization import Department
+from app.models.organization import Department, Role
 from app.models.project import Project
 from app.schemas.usage import Group, Metrics, UsageDetail, UsageQuery, UsageRange, UsageRecord
 
@@ -27,6 +27,7 @@ DIMENSIONS = {
 class UsageRepository:
     def __init__(self, db: AsyncSession, actor: Principal) -> None:
         self.db = db
+        self.actor = actor
         self.scope = actor.within(Ledger.user_id, Ledger.department_id)
 
     def predicates(self, window: UsageRange, query: UsageQuery) -> list[Any]:
@@ -178,4 +179,9 @@ class UsageRepository:
         item = (
             await self.db.execute(self.record_query().where(self.scope, Ledger.id == request_id))
         ).one_or_none()
-        return self.record(item, detailed=True) if item is not None else None
+        if item is None:
+            return None
+        result = self.record(item, detailed=True)
+        if self.actor.role != Role.SUPER_ADMIN:
+            result.source_ip = None
+        return result

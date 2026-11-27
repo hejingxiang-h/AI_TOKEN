@@ -209,7 +209,12 @@ async def test_gateway_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
             ) as client,
         ):
             app.state.gateway_http = proxy_client
-            headers = {"Authorization": "Bearer " + token, "x-litellm-call-id": "forged"}
+            headers = {
+                "Authorization": "Bearer " + token,
+                "x-litellm-call-id": "forged",
+                "user-agent": "OpenAI-Python/2.0 test marker",
+                "x-forwarded-for": "192.0.2.11",
+            }
             assert (await client.get("/v1/models")).status_code == 401
             assert (await client.get("/v1/models", headers=headers)).json()["data"][0][
                 "id"
@@ -278,6 +283,7 @@ async def test_gateway_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
                     )
                     assert row.normalized_usage["reasoning"] == 4
                     assert row.supplier_request_id == "mock-supplier"
+                    assert row.client_type == "openai_sdk" and row.source_ip == "127.0.0.1"
                 assert {"json", "sse", "callback"} == {row.usage_source for row in rows}
                 assert (
                     await db.scalar(

@@ -65,6 +65,7 @@ services:
     environment:
       APP_DB_HOST: postgres
       APP_DB_PORT: "5432"
+      FORWARDED_ALLOW_IPS: ${APP_TRUSTED_FORWARDERS:-127.0.0.1}
       APP_DB_NAME: ${APP_DB_NAME:-ai_token_gateway}
       APP_DB_USER: ${APP_DB_USER:-gateway_app}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
@@ -99,6 +100,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
+
+  worker:
+    build:
+      context: ./backend
+    command: ["python", "-m", "app.tasks.risk_worker"]
+    restart: unless-stopped
+    environment:
+      APP_DB_HOST: postgres
+      APP_DB_NAME: ${APP_DB_NAME:-ai_token_gateway}
+      APP_DB_USER: ${APP_DB_USER:-gateway_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      APP_REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      APP_GATEWAY_DEADLINE: ${APP_GATEWAY_DEADLINE:-120}
+      APP_RISK_INTERVAL: ${APP_RISK_INTERVAL:-30}
+      APP_RISK_FREQUENCY: ${APP_RISK_FREQUENCY:-100}
+      APP_RISK_HIGH_COST_USD: ${APP_RISK_HIGH_COST_USD:-10}
+      APP_RISK_PROVIDER_ERRORS: ${APP_RISK_PROVIDER_ERRORS:-5}
+      APP_RISK_INVALID_KEYS: ${APP_RISK_INVALID_KEYS:-10}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [app-data]
 
   frontend:
     build:

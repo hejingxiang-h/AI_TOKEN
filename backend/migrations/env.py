@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     model_catalog,
     organization,
     project,
+    risk,
 )
 from app.models.base import Base
 

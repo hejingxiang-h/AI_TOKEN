@@ -42,6 +42,9 @@ export interface UsageRecord {
   protocol: string
   started_at: string
   finished_at: string | null
+  client_type: string | null
+  risk_state: string
+  duration_ms: number | null
   status: string
   settlement: string
   currency: string
@@ -55,6 +58,7 @@ export interface UsageRecord {
   key_id: string
 }
 export interface UsageDetail extends UsageRecord {
+  source_ip: string | null
   raw_usage: Record<string, unknown> | null
   supplier_cost: string | null
   supplier_request_id: string | null

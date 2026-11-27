@@ -74,6 +74,9 @@ class UsageRecord(BaseModel):
     price_id: UUID
     currency: str
     protocol: str
+    client_type: str | None
+    risk_state: str
+    duration_ms: float | None
     started_at: datetime
     finished_at: datetime | None
     status: str
@@ -86,6 +89,7 @@ class UsageRecord(BaseModel):
 
 
 class UsageDetail(UsageRecord):
+    source_ip: str | None
     raw_usage: dict | None
     supplier_request_id: str | None
     proxy_call_id: str | None

@@ -87,7 +87,7 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 供应商凭据由 LiteLLM 运行环境注入。模型连通性检查需要 FastAPI 能访问 LiteLLM 私有地址，配置 `APP_LITELLM_URL` 和具有对应健康接口权限的 `APP_LITELLM_ADMIN_KEY`。未配置时返回 `unavailable`。
 
-子 Key 由管理员授权，所有者领取一次。Key 哈希和掩码用于本地登记。网关通过该 Key 进行模型准入。模型路由和用量详情见阶段七说明。操作日志、风险告警和系统设置仍为有标记的演示页面。
+子 Key 由管理员授权，所有者领取一次。Key 哈希和掩码用于本地登记。网关通过该 Key 进行模型准入。模型路由和用量详情见阶段七说明。系统设置仍为有标记的演示页面。
 
 集成测试需要独立 PostgreSQL 数据库。数据库名需以 `_stage_six` 结尾，配置 `APP_DB_*`，应用迁移后使用 `TEST_GATEWAY_POSTGRES=1` 运行 `uv run pytest -q`。测试会写入合成记录，请使用可回收的测试库。
 
@@ -106,3 +106,9 @@ DeepSeek 普通响应、SSE 和平台结算已在隔离环境通过真实调用�
 首页、Token 统计、调用记录读取真实网关账本。用 `APP_ENTERPRISE_TIMEZONE` 配置企业时区，默认 `Asia/Shanghai`。费用按原币展示。参见 [统计接口和数据口径](docs/USAGE_ANALYTICS.md)。
 
 统计默认显示企业时区的今天。费用只汇总已结算的平台金额，未知用量和未结算数量单独展示。页面与明细均按当前账号的数据范围读取。
+
+## 阶段九审计与告警
+
+操作日志和风险告警读取真实接口。应用迁移后，启动 Compose 的 `worker` 服务执行额度、异常和结算补偿检查。权限、隐私和本地运行方式见 [审计与风险告警](docs/AUDIT_AND_RISK.md)。
+
+正式部署前备份业务 PostgreSQL。使用 Compose 更新时，后端启动会运行 `alembic upgrade head`，确认迁移后检查 `worker` 已启动。将 `APP_TRUSTED_FORWARDERS` 配置为实际反向代理地址或专用网段，再用测试账号验证来源 IP、告警去重和处理审计。平台费用可供核查，供应商账单导入仍待接入。

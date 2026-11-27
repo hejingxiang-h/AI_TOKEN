@@ -88,7 +88,7 @@ class AccessService(OrganizationService):
         self.db.add_all(
             KeyModel(grant_id=item.id, model_id=model_id) for model_id in set(data.model_ids)
         )
-        await self.finish("key.granted", item.id, "key_grant")
+        await self.finish("key.granted", item.id, "key_grant", {"state": item.state})
         return await self.record_key(item)
 
     async def claim(self, target: UUID) -> KeySecret:
@@ -109,7 +109,7 @@ class AccessService(OrganizationService):
             )
         )
         item.state = "active"
-        await self.finish("key.claimed", item.id, "key_grant")
+        await self.finish("key.claimed", item.id, "key_grant", {"state": item.state})
         return KeySecret(key=secret, gateway_status=self.gateway_status)
 
     async def change_key(self, target: UUID, state: str) -> KeyRecord:
@@ -133,7 +133,7 @@ class AccessService(OrganizationService):
             await self.check_owner(item.owner_id, item.department_id, item.project_id)
             await self.check_models((await self.record_key(item)).model_ids)
         item.state = state
-        await self.finish("key." + state, item.id, "key_grant")
+        await self.finish("key." + state, item.id, "key_grant", {"state": item.state})
         return await self.record_key(item)
 
     async def record_quota(self, item: QuotaRule) -> QuotaRecord:
@@ -175,5 +175,10 @@ class AccessService(OrganizationService):
         self.db.add_all(
             QuotaModel(quota_id=item.id, model_id=model_id) for model_id in set(data.model_ids)
         )
-        await self.finish("quota.saved", item.id, "quota_rule")
+        await self.finish(
+            "quota.saved",
+            item.id,
+            "quota_rule",
+            {"scope": data.scope, "fields": sorted(data.model_fields_set)},
+        )
         return await self.record_quota(item)

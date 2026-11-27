@@ -2,7 +2,7 @@ import asyncio
 import hmac
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
 from datetime import UTC, datetime
 from hashlib import sha256
 from time import time
@@ -13,6 +13,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.types import Send
 
 from app.api.auth import Database
@@ -20,6 +21,7 @@ from app.core.config import Settings
 from app.integrations.gateway_limits import release
 from app.integrations.gateway_proxy import send
 from app.repositories.gateway import GatewayRepository
+from app.repositories.risk import client_type, signal, source_ip
 from app.schemas.gateway import InferenceBody, Protocol, UsageEvent
 from app.services.gateway import Admission, admit, finalize
 from app.services.gateway_recovery import forget, journal
@@ -147,8 +149,32 @@ def enabled(route_protocol: str, settings: Settings) -> bool:
     return route_protocol != "responses" or settings.app_gateway_responses_enabled
 
 
+def request_ip(request: Request) -> str | None:
+    return source_ip(request.client.host if request.client else None)
+
+
+async def observe[T](request: Request, operation: Awaitable[T]) -> T:
+    try:
+        return await operation
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            await signal(
+                request.app.state.session_factory, "invalid_key", request_ip(request) or "unknown"
+            )
+        elif exc.status_code == 503:
+            await signal(request.app.state.session_factory, "gateway_error", "gateway")
+        raise
+    except SQLAlchemyError:
+        await signal(request.app.state.session_factory, "usage_write_error", "gateway")
+        raise
+
+
 @router.get("/v1/models")
 async def model_list(request: Request, db: Database) -> dict:
+    return await observe(request, visible_models(request, db))
+
+
+async def visible_models(request: Request, db: Database) -> dict:
     repo = GatewayRepository(db)
     grant = await repo.authenticate(caller_key(request), datetime.now(UTC))
     models = await repo.models(grant, await repo.quotas(grant))
@@ -208,6 +234,7 @@ async def finish(
                             "gateway settlement retry", extra={"request_id": request_id.hex}
                         )
                 else:
+                    await signal(request.app.state.session_factory, "settlement_failure", "gateway")
                     logger.error(
                         "gateway settlement pending recovery", extra={"request_id": request_id.hex}
                     )
@@ -267,7 +294,16 @@ async def infer(request: Request, db: Database, protocol: Protocol) -> Response:
     body, output = await payload(request, protocol, settings)
     request_id = UUID(request.state.request_id) if hasattr(request.state, "request_id") else uuid4()
     admission = await admit(
-        db, settings, request.app.state.cache, token, request_id, protocol, body["model"], output
+        db,
+        settings,
+        request.app.state.cache,
+        token,
+        request_id,
+        protocol,
+        body["model"],
+        output,
+        source_ip=request_ip(request),
+        client_type=client_type(request.headers.get("user-agent", "")),
     )
     deadline = asyncio.get_running_loop().time() + settings.app_gateway_deadline
     upstream = None
@@ -341,17 +377,17 @@ async def infer(request: Request, db: Database, protocol: Protocol) -> Response:
 
 @router.post("/v1/chat/completions")
 async def chat(request: Request, db: Database) -> Response:
-    return await infer(request, db, "chat_completions")
+    return await observe(request, infer(request, db, "chat_completions"))
 
 
 @router.post("/v1/responses")
 async def responses(request: Request, db: Database) -> Response:
-    return await infer(request, db, "responses")
+    return await observe(request, infer(request, db, "responses"))
 
 
 @router.post("/v1/messages")
 async def messages(request: Request, db: Database) -> Response:
-    return await infer(request, db, "messages")
+    return await observe(request, infer(request, db, "messages"))
 
 
 @router.post("/internal/v1/gateway/usage", status_code=204, include_in_schema=False)

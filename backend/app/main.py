@@ -1,6 +1,5 @@
-import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +10,7 @@ from app.api.gateway import router as gateway_router
 from app.api.health import router
 from app.api.model_catalog import router as model_router
 from app.api.organization import router as organization_router
+from app.api.risk import router as risk_router
 from app.api.usage import router as usage_router
 from app.core.config import Settings
 from app.core.errors import register_exception_handlers
@@ -19,7 +19,6 @@ from app.db.cache import create_redis_client
 from app.db.postgres import create_database_engine, create_session_factory
 from app.integrations.gateway_proxy import proxy_client
 from app.repositories.health import HealthRepository
-from app.services.gateway_recovery import recover
 from app.services.health import HealthService
 
 
@@ -41,15 +40,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             async with proxy_client() as gateway_http:
                 application.state.gateway_http = gateway_http
-                recovery = asyncio.create_task(
-                    recover(application.state.session_factory, cache, config.app_gateway_deadline)
-                )
-                try:
-                    yield
-                finally:
-                    recovery.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await recovery
+                yield
         finally:
             try:
                 await cache.aclose()
@@ -80,6 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(access_router)
     application.include_router(gateway_router)
     application.include_router(usage_router)
+    application.include_router(risk_router)
     return application
 
 

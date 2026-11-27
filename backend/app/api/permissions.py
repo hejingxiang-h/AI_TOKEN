@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy import select
 
 from app.api.auth import Database, Identity
@@ -31,7 +31,8 @@ async def get_principal(identity: Identity, db: Database) -> Principal:
 Actor = Annotated[Principal, Depends(get_principal)]
 
 
-def require_admin(actor: Actor) -> Principal:
+def require_admin(actor: Actor, request: Request) -> Principal:
+    request.state.management_actor = actor.user_id
     actor.require_admin()
     return actor
 

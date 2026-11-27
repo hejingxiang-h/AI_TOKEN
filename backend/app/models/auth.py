@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -40,6 +41,7 @@ class AuditEvent(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     actor_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_account.id"), index=True)
+    change_summary: Mapped[dict | None] = mapped_column(JSONB)
     actor_type: Mapped[str] = mapped_column(String(24))
     action: Mapped[str] = mapped_column(String(60))
     target_type: Mapped[str] = mapped_column(String(32))

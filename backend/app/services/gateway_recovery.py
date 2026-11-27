@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 from typing import Any
@@ -8,7 +7,7 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.services.gateway import finalize, reconcile_stale
+from app.services.gateway import finalize
 
 logger = logging.getLogger(__name__)
 JOURNAL = "gateway:settlement-journal"
@@ -39,17 +38,3 @@ async def recover_journal(factory: async_sessionmaker, cache: Redis, cursor: int
         else:
             await forget(cache, request_id)
     return cursor
-
-
-async def recover(factory: async_sessionmaker, cache: Redis, deadline: int) -> None:
-    cursor = 0
-    while True:
-        try:
-            cursor = await recover_journal(factory, cache, cursor)
-        except RedisError:
-            logger.warning("gateway settlement journal scan unavailable")
-        try:
-            await reconcile_stale(factory, deadline)
-        except Exception:
-            logger.warning("gateway stale settlement scan unavailable")
-        await asyncio.sleep(15 if cursor == 0 else 1)

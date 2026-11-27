@@ -382,6 +382,14 @@ function pie(key: 'model' | 'provider'): EChartsCoreOption {
       <dd>{{ detail.key_id }}</dd>
       <dt>结算状态</dt>
       <dd>{{ status(detail.settlement) }}</dd>
+      <dt>耗时</dt>
+      <dd>{{ detail.duration_ms == null ? '—' : detail.duration_ms + ' ms' }}</dd>
+      <dt>来源 IP</dt>
+      <dd>{{ detail.source_ip || '—' }}</dd>
+      <dt>客户端类型</dt>
+      <dd>{{ detail.client_type || '未知' }}</dd>
+      <dt>风险状态</dt>
+      <dd>{{ detail.risk_state === 'flagged' ? '待核查' : '未标记' }}</dd>
       <dt>价格版本</dt>
       <dd>{{ detail.price_id }}</dd>
       <dt>用量来源</dt>
