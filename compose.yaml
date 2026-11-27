@@ -53,7 +53,7 @@ services:
     volumes:
       - ./deploy/litellm/config.yaml:/app/gateway.yaml:ro
       - ./deploy/litellm/gateway_callback.py:/app/gateway_callback.py:ro
-    networks: [gateway, proxy-data]
+    networks: [gateway, proxy-data, provider-egress]
     depends_on:
       postgres:
         condition: service_healthy
@@ -145,6 +145,7 @@ services:
 
 networks:
   edge:
+  provider-egress:
   app-data:
     internal: true
   proxy-data:

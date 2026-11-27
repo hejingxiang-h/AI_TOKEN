@@ -93,6 +93,8 @@ async def test_gateway_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
         "completion_tokens_details": {"reasoning_tokens": 4},
     }
     calls: list[str] = []
+    reserved_at_proxy = asyncio.Event()
+    complete_at_proxy = asyncio.Event()
 
     class InterruptedStream(httpx.AsyncByteStream):
         async def __aiter__(self) -> AsyncIterator[bytes]:
@@ -106,6 +108,9 @@ async def test_gateway_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
         data = json.loads(request.content)
         assert not {"user", "metadata", "litellm_metadata"}.intersection(data)
         calls.append(str(request.url.path))
+        if data.get("messages") == [{"role": "user", "content": "concurrent reservation"}]:
+            reserved_at_proxy.set()
+            await complete_at_proxy.wait()
         headers = {"x-litellm-call-id": call_id, "x-request-id": "mock-supplier"}
         if data.get("messages") == [{"role": "user", "content": "proxy timeout"}]:
             raise httpx.ReadTimeout("simulated upstream timeout")
@@ -230,6 +235,22 @@ async def test_gateway_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
             assert (
                 await client.post(path, json={**body, "model": "blocked"}, headers=headers)
             ).status_code == 403
+            remote_media = {
+                **body,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": "https://example.invalid/media.png"},
+                            }
+                        ],
+                    }
+                ],
+            }
+            assert (await client.post(path, json=remote_media, headers=headers)).status_code == 400
+            assert not calls
             reply = await client.post(path, json=body, headers=headers)
             assert reply.status_code == 200, reply.text
             assert reply.json()["choices"][0]["message"]["tool_calls"]
@@ -412,6 +433,34 @@ async def test_gateway_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
                 assert row.status == "client_disconnected" and row.settlement == "review"
                 assert row.raw_usage["prompt_tokens"] == usage["prompt_tokens"]
                 assert row.platform_cost is None
+            async with app.state.session_factory.begin() as db:
+                quota = await db.scalar(select(QuotaRule).where(QuotaRule.key_id == grant_id))
+                history = await db.scalars(
+                    select(GatewayRequest).where(GatewayRequest.key_id == grant_id)
+                )
+                current = sum(
+                    (
+                        item.platform_cost
+                        if item.settlement == "settled"
+                        else item.reserved_cost
+                        if item.settlement in {"review", "reserved"}
+                        else Decimal(0)
+                    )
+                    for item in history
+                )
+                quota.daily_amount = quota.monthly_amount = current + Decimal("0.50")
+            concurrent = {
+                **body,
+                "messages": [{"role": "user", "content": "concurrent reservation"}],
+            }
+            first = asyncio.create_task(client.post(path, json=concurrent, headers=headers))
+            try:
+                await asyncio.wait_for(reserved_at_proxy.wait(), timeout=5)
+                second = await client.post(path, json=concurrent, headers=headers)
+                assert second.status_code == 429
+            finally:
+                complete_at_proxy.set()
+                assert (await first).status_code == 200
 
 
 @pytest.mark.skipif(os.getenv("TEST_GATEWAY_STAGE_SEVEN") != "1", reason="requires isolated Redis")

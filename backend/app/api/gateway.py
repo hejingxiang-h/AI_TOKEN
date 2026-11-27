@@ -117,6 +117,43 @@ def check_tools(protocol: Protocol, body: dict) -> None:
             raise HTTPException(400, "Only client-executed function tools are supported")
 
 
+def check_content(body: dict) -> None:
+    # The supported inference contract is text and caller-executed tools.
+    # Provider adapters may dereference media even when the transport destination is fixed.
+    allowed = {
+        "text",
+        "input_text",
+        "output_text",
+        "message",
+        "function",
+        "function_call",
+        "function_call_output",
+        "tool_use",
+        "tool_result",
+        "refusal",
+    }
+    references = {"url", "source", "image_url", "audio_url", "file_url", "file_id", "file_data"}
+    pending = [
+        body[field] for field in ("messages", "input", "instructions", "system") if field in body
+    ]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, list):
+            pending.extend(item)
+        elif isinstance(item, dict):
+            kind = item.get("type")
+            if (
+                kind is not None
+                and (not isinstance(kind, str) or kind not in allowed)
+                or references.intersection(item)
+            ):
+                raise HTTPException(400, "Only text content and client tool messages are supported")
+            # Anthropic tool_use.input is opaque JSON consumed by the caller.
+            pending.extend(
+                value for key, value in item.items() if not (kind == "tool_use" and key == "input")
+            )
+
+
 async def payload(request: Request, protocol: Protocol, settings: Settings) -> tuple[dict, int]:
     try:
         incoming = InferenceBody.model_validate_json(await bounded_body(request, MAX_BYTES))
@@ -136,6 +173,7 @@ async def payload(request: Request, protocol: Protocol, settings: Settings) -> t
     if type(output) is not int or not 1 <= output <= settings.app_gateway_output_limit:
         raise HTTPException(400, "Invalid output limit")
     check_tools(protocol, data)
+    check_content(data)
     if protocol == "chat_completions":
         data.pop("stream_options", None)
         if incoming.stream:

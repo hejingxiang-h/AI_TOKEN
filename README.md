@@ -97,7 +97,7 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 运行前应用 Alembic 迁移、部署 Redis，并配置 `APP_LITELLM_SERVICE_KEY`、匹配的模型别名、已核实的 `APP_GATEWAY_INPUT_BOUNDS`、有效 USD 价目与适用配额。业务部署的 LiteLLM 模型列表初始为空，由运维加载授权路由和供应商凭据。操作示例与实际验证覆盖见 [SDK 示例](docs/GATEWAY_SDK.md) 和 [验收报告](docs/GATEWAY_TEST_REPORT.md)。
 
-DeepSeek 普通响应、SSE 和平台结算已在隔离环境通过真实调用验证。生产部署、服务 Virtual Key 和真实工具调用待验收。供应商凭据仅在服务端加载，本地环境文件由 Git 忽略。
+DeepSeek 普通响应、SSE 和平台结算已在隔离环境通过真实调用验证。受限服务 Virtual Key 和真实工具回合随后也已通过本机验收。生产部署仍待验收。供应商凭据仅在服务端加载，本地环境文件由 Git 忽略。
 
 凭据隔离、日志和提交前检查见 [安全设计](docs/SECURITY.md)。
 
@@ -112,3 +112,7 @@ DeepSeek 普通响应、SSE 和平台结算已在隔离环境通过真实调用�
 操作日志和风险告警读取真实接口。应用迁移后，启动 Compose 的 `worker` 服务执行额度、异常和结算补偿检查。权限、隐私和本地运行方式见 [审计与风险告警](docs/AUDIT_AND_RISK.md)。
 
 正式部署前备份业务 PostgreSQL。使用 Compose 更新时，后端启动会运行 `alembic upgrade head`，确认迁移后检查 `worker` 已启动。将 `APP_TRUSTED_FORWARDERS` 配置为实际反向代理地址或专用网段，再用测试账号验证来源 IP、告警去重和处理审计。平台费用可供核查，供应商账单导入仍待接入。
+
+## 阶段十测试与 DeepSeek 验收
+
+当前端到端实测范围为 DeepSeek。普通响应、SSE、函数工具回合、归属和平台结算已在本机隔离环境验证。部署前仍需验证 Docker、Nginx 和代理账务日志。其他供应商后续接入。详见 [全系统测试报告](docs/TEST_REPORT.md) 与 [DeepSeek 验收报告](docs/DEEPSEEK_ACCEPTANCE.md)。
